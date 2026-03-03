@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import Image from "next/image";
 import wordData from "@/data/words.json";
 
 const WORDS_BY_LENGTH: Record<number, string[]> = {
@@ -92,8 +93,8 @@ function evaluateGuess(guess: string, answer: string): LetterStatus[] {
 }
 
 const STATUS_COLORS = {
-  correct: "bg-[#538d4e] text-white border-[#538d4e]",
-  present: "bg-[#b59f3b] text-white border-[#b59f3b]",
+  correct: "bg-success text-success-content border-success",
+  present: "bg-warning text-warning-content border-warning",
   absent: "bg-[#3a3a3c] text-white border-[#3a3a3c]",
 };
 
@@ -306,7 +307,10 @@ export default function WordleGame() {
 
       {/* Header */}
       <div className="relative flex items-center justify-center pt-4 pb-2 px-4">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Catholic Wordle</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Image src="/icon-192.png" alt="Catholic Wordle" width={32} height={32} className="rounded-md" />
+          Catholic Wordle
+        </h1>
         <div className="absolute right-4 flex gap-1">
           <button
             className="btn btn-ghost btn-sm btn-square"
@@ -340,7 +344,7 @@ export default function WordleGame() {
                 min={5}
                 max={10}
                 value={wordLength}
-                className="range range-accent"
+                className="range range-success"
                 step={1}
                 onChange={(e) => reset(Number(e.target.value))}
               />
@@ -407,7 +411,7 @@ export default function WordleGame() {
                       <span className="text-sm font-bold w-3 text-right">{guess}</span>
                       <div
                         className={`h-6 rounded-sm flex items-center justify-end px-2 text-xs font-bold text-white transition-all ${
-                          isLastGuess ? "bg-[#538d4e]" : "bg-[#3a3a3c]"
+                          isLastGuess ? "bg-success" : "bg-[#3a3a3c]"
                         }`}
                         style={{ width: `${width}%` }}
                       >
