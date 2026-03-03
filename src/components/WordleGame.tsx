@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import wordData from "@/data/words.json";
 
-const WORDS_BY_LENGTH: Record<number, string> = {
-  5: "grace",
-  6: "zealot",
-  7: "baptism",
-  8: "devotion",
-  9: "eucharist",
-  10: "redemption",
+const WORDS_BY_LENGTH: Record<number, string[]> = {
+  5: wordData["5_letter"],
+  6: wordData["6_letter"],
+  7: wordData["7_letter"],
+  8: wordData["8_letter"],
+  9: wordData["9_letter"],
+  10: wordData["10_letter"],
 };
+
+function pickRandom(words: string[]): string {
+  return words[Math.floor(Math.random() * words.length)];
+}
 
 const MAX_GUESSES = 6;
 
@@ -122,6 +127,7 @@ function getKeyColor(status: LetterStatus | undefined): string {
 
 export default function WordleGame() {
   const [wordLength, setWordLength] = useState(5);
+  const [answer, setAnswer] = useState(() => pickRandom(WORDS_BY_LENGTH[5]));
   const [guesses, setGuesses] = useState<TileData[][]>([]);
   const [currentGuess, setCurrentGuess] = useState("");
   const [gameState, setGameState] = useState<"playing" | "won" | "lost">("playing");
@@ -136,8 +142,6 @@ export default function WordleGame() {
   useEffect(() => {
     setStats(loadStats());
   }, []);
-
-  const answer = WORDS_BY_LENGTH[wordLength].toLowerCase();
 
   const keyStatuses = useCallback((): Record<string, LetterStatus> => {
     const statuses: Record<string, LetterStatus> = {};
@@ -247,7 +251,9 @@ export default function WordleGame() {
   }, [handleKey]);
 
   const reset = (newLength?: number) => {
+    const len = newLength ?? wordLength;
     if (newLength !== undefined) setWordLength(newLength);
+    setAnswer(pickRandom(WORDS_BY_LENGTH[len]));
     setGuesses([]);
     setCurrentGuess("");
     setGameState("playing");
