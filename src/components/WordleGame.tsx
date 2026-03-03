@@ -42,6 +42,31 @@ interface Stats {
 }
 
 const STATS_KEY = "catholic-wordle-stats";
+const GAME_KEY = "catholic-wordle-game";
+
+interface SavedGame {
+  answer: string;
+  wordLength: number;
+  guessWords: string[];
+  gameState: "playing" | "won" | "lost";
+}
+
+function loadGame(): SavedGame | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(GAME_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveGame(game: SavedGame) {
+  localStorage.setItem(GAME_KEY, JSON.stringify(game));
+}
+
+function clearGame() {
+  localStorage.removeItem(GAME_KEY);
+}
 
 function loadStats(): Stats {
   if (typeof window === "undefined") return defaultStats();
@@ -140,10 +165,26 @@ export default function WordleGame() {
   const [showStats, setShowStats] = useState(false);
   const statsRecorded = useRef(false);
 
-  // Load stats on mount and track game start
+  // Load stats and restore saved game on mount
   useEffect(() => {
     setStats(loadStats());
-    log("game_started", { word_length: 5 });
+    const saved = loadGame();
+    if (saved && saved.gameState === "playing" && saved.guessWords.length > 0) {
+      setWordLength(saved.wordLength);
+      setAnswer(saved.answer);
+      const restoredGuesses = saved.guessWords.map((word) => {
+        const evaluation = evaluateGuess(word, saved.answer);
+        return word.split("").map((letter, i) => ({
+          letter,
+          status: evaluation[i],
+        }));
+      });
+      setGuesses(restoredGuesses);
+      setGameState("playing");
+      log("game_restored", { word_length: saved.wordLength, guesses: saved.guessWords.length });
+    } else {
+      log("game_started", { word_length: 5 });
+    }
   }, []);
 
   const keyStatuses = useCallback((): Record<string, LetterStatus> => {
@@ -214,6 +255,7 @@ export default function WordleGame() {
     }));
 
     const newGuesses = [...guesses, tiles];
+    const newGuessWords = newGuesses.map((g) => g.map((t) => t.letter).join(""));
     setGuesses(newGuesses);
     setCurrentGuess("");
 
@@ -227,6 +269,7 @@ export default function WordleGame() {
       setWinRow(newGuesses.length - 1);
       setGameState("won");
       recordResult(true, newGuesses.length);
+      clearGame();
       log("game_won", {
         answer,
         guesses: newGuesses.length,
@@ -237,11 +280,14 @@ export default function WordleGame() {
       setGameState("lost");
       showToast(answer.toUpperCase());
       recordResult(false, newGuesses.length);
+      clearGame();
       log("game_lost", {
         answer,
         word_length: wordLength,
       });
       setTimeout(() => setShowStats(true), 2000);
+    } else {
+      saveGame({ answer, wordLength, guessWords: newGuessWords, gameState: "playing" });
     }
   }, [currentGuess, wordLength, answer, guesses, recordResult]);
 
@@ -287,6 +333,7 @@ export default function WordleGame() {
     setWinRow(null);
     setShowStats(false);
     statsRecorded.current = false;
+    clearGame();
     log("play_again", { word_length: len });
   };
 
