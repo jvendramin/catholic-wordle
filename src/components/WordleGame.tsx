@@ -163,25 +163,32 @@ export default function WordleGame() {
   const [winRow, setWinRow] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats>(defaultStats);
   const [showStats, setShowStats] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const savedGameRef = useRef<SavedGame | null>(null);
   const statsRecorded = useRef(false);
 
-  // Load stats and restore saved game on mount
+  const restoreSavedGame = useCallback((saved: SavedGame) => {
+    setWordLength(saved.wordLength);
+    setAnswer(saved.answer);
+    const restoredGuesses = saved.guessWords.map((word) => {
+      const evaluation = evaluateGuess(word, saved.answer);
+      return word.split("").map((letter, i) => ({
+        letter,
+        status: evaluation[i],
+      }));
+    });
+    setGuesses(restoredGuesses);
+    setGameState("playing");
+    log("game_restored", { word_length: saved.wordLength, guesses: saved.guessWords.length });
+  }, []);
+
+  // Load stats and check for saved game on mount
   useEffect(() => {
     setStats(loadStats());
     const saved = loadGame();
     if (saved && saved.gameState === "playing" && saved.guessWords.length > 0) {
-      setWordLength(saved.wordLength);
-      setAnswer(saved.answer);
-      const restoredGuesses = saved.guessWords.map((word) => {
-        const evaluation = evaluateGuess(word, saved.answer);
-        return word.split("").map((letter, i) => ({
-          letter,
-          status: evaluation[i],
-        }));
-      });
-      setGuesses(restoredGuesses);
-      setGameState("playing");
-      log("game_restored", { word_length: saved.wordLength, guesses: saved.guessWords.length });
+      savedGameRef.current = saved;
+      setShowResumeModal(true);
     } else {
       log("game_started", { word_length: 5 });
     }
@@ -406,6 +413,41 @@ export default function WordleGame() {
           </button>
         </div>
       </div>
+
+      {/* Resume Game Modal */}
+      {showResumeModal && (
+        <dialog className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-2 text-center">Game in Progress</h3>
+            <p className="text-center text-sm opacity-70 mb-6">
+              You have an unfinished {savedGameRef.current?.wordLength}-letter game with{" "}
+              {savedGameRef.current?.guessWords.length}{" "}
+              {savedGameRef.current?.guessWords.length === 1 ? "guess" : "guesses"} made.
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (savedGameRef.current) restoreSavedGame(savedGameRef.current);
+                  setShowResumeModal(false);
+                }}
+              >
+                Continue
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  clearGame();
+                  setShowResumeModal(false);
+                  log("game_started", { word_length: 5 });
+                }}
+              >
+                Start Over
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
 
       {/* Settings Modal */}
       <dialog id="settings_modal" className="modal">
