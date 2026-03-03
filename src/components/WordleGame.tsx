@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
-import { track } from "@vercel/analytics";
+import { log } from "@/lib/log";
 import wordData from "@/data/words.json";
 
 const WORDS_BY_LENGTH: Record<number, string[]> = {
@@ -143,7 +143,7 @@ export default function WordleGame() {
   // Load stats on mount and track game start
   useEffect(() => {
     setStats(loadStats());
-    track("game_started", { word_length: 5 });
+    log("game_started", { word_length: 5 });
   }, []);
 
   const keyStatuses = useCallback((): Record<string, LetterStatus> => {
@@ -198,7 +198,7 @@ export default function WordleGame() {
     if (currentGuess.length !== wordLength) {
       setShake(true);
       showToast("Not enough letters");
-      track("invalid_guess", {
+      log("invalid_guess", {
         reason: "not_enough_letters",
         letters_entered: currentGuess.length,
         word_length: wordLength,
@@ -217,7 +217,7 @@ export default function WordleGame() {
     setGuesses(newGuesses);
     setCurrentGuess("");
 
-    track("guess_submitted", {
+    log("guess_submitted", {
       word: currentGuess,
       guess_number: newGuesses.length,
       word_length: wordLength,
@@ -227,7 +227,7 @@ export default function WordleGame() {
       setWinRow(newGuesses.length - 1);
       setGameState("won");
       recordResult(true, newGuesses.length);
-      track("game_won", {
+      log("game_won", {
         answer,
         guesses: newGuesses.length,
         word_length: wordLength,
@@ -237,7 +237,7 @@ export default function WordleGame() {
       setGameState("lost");
       showToast(answer.toUpperCase());
       recordResult(false, newGuesses.length);
-      track("game_lost", {
+      log("game_lost", {
         answer,
         word_length: wordLength,
       });
@@ -277,7 +277,7 @@ export default function WordleGame() {
     const len = newLength ?? wordLength;
     if (newLength !== undefined) {
       setWordLength(newLength);
-      track("word_length_changed", { word_length: newLength });
+      log("word_length_changed", { word_length: newLength });
     }
     setAnswer(pickRandom(WORDS_BY_LENGTH[len]));
     setGuesses([]);
@@ -287,7 +287,7 @@ export default function WordleGame() {
     setWinRow(null);
     setShowStats(false);
     statsRecorded.current = false;
-    track("play_again", { word_length: len });
+    log("play_again", { word_length: len });
   };
 
   // Build grid rows
@@ -338,7 +338,7 @@ export default function WordleGame() {
             className="btn btn-ghost btn-sm btn-square"
             onClick={() => {
               setShowStats(true);
-              track("modal_opened", { modal: "stats" });
+              log("modal_opened", { modal: "stats" });
             }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -349,7 +349,7 @@ export default function WordleGame() {
             className="btn btn-ghost btn-sm btn-square"
             onClick={() => {
               (document.getElementById("settings_modal") as HTMLDialogElement)?.showModal();
-              track("modal_opened", { modal: "settings" });
+              log("modal_opened", { modal: "settings" });
             }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -466,7 +466,7 @@ export default function WordleGame() {
                     const fresh = defaultStats();
                     saveStats(fresh);
                     setStats(fresh);
-                    track("stats_reset");
+                    log("stats_reset");
                   }}
                 >
                   Reset Stats
