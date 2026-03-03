@@ -394,6 +394,17 @@ export default function WordleGame() {
               </div>
             </div>
           </div>
+          <div className="flex justify-center mt-6">
+            <button
+              className="btn btn-primary btn-wide"
+              onClick={() => {
+                reset();
+                (document.getElementById("settings_modal") as HTMLDialogElement)?.close();
+              }}
+            >
+              New Game
+            </button>
+          </div>
         </div>
         <form method="dialog" className="modal-backdrop">
           <button>close</button>
