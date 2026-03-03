@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
+import { track } from "@vercel/analytics";
 import wordData from "@/data/words.json";
 
 const WORDS_BY_LENGTH: Record<number, string[]> = {
@@ -210,15 +211,30 @@ export default function WordleGame() {
     setGuesses(newGuesses);
     setCurrentGuess("");
 
+    track("guess_submitted", {
+      word: currentGuess,
+      guess_number: newGuesses.length,
+      word_length: wordLength,
+    });
+
     if (currentGuess === answer) {
       setWinRow(newGuesses.length - 1);
       setGameState("won");
       recordResult(true, newGuesses.length);
+      track("game_won", {
+        answer,
+        guesses: newGuesses.length,
+        word_length: wordLength,
+      });
       setTimeout(() => setShowStats(true), 1600);
     } else if (newGuesses.length >= MAX_GUESSES) {
       setGameState("lost");
       showToast(answer.toUpperCase());
       recordResult(false, newGuesses.length);
+      track("game_lost", {
+        answer,
+        word_length: wordLength,
+      });
       setTimeout(() => setShowStats(true), 2000);
     }
   }, [currentGuess, wordLength, answer, guesses, recordResult]);
@@ -253,7 +269,10 @@ export default function WordleGame() {
 
   const reset = (newLength?: number) => {
     const len = newLength ?? wordLength;
-    if (newLength !== undefined) setWordLength(newLength);
+    if (newLength !== undefined) {
+      setWordLength(newLength);
+      track("word_length_changed", { word_length: newLength });
+    }
     setAnswer(pickRandom(WORDS_BY_LENGTH[len]));
     setGuesses([]);
     setCurrentGuess("");
