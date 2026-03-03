@@ -305,13 +305,9 @@ export default function WordleGame() {
         }
       `}</style>
 
-      {/* Header */}
-      <div className="relative flex items-center justify-center pt-4 pb-2 px-4">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Image src="/icon-192.png" alt="Catholic Wordle" width={32} height={32} className="rounded-md" />
-          Catholic Wordle
-        </h1>
-        <div className="absolute right-4 flex gap-1">
+      {/* Top bar - icons only, fixed */}
+      <div className="flex items-center justify-end pt-3 pb-1 px-4 shrink-0">
+        <div className="flex gap-1">
           <button
             className="btn btn-ghost btn-sm btn-square"
             onClick={() => setShowStats(true)}
@@ -451,8 +447,14 @@ export default function WordleGame() {
         )}
       </dialog>
 
-      {/* Grid area - centered */}
-      <div className="flex-1 flex flex-col items-center justify-start pt-2">
+      {/* Game area - centered on desktop, spread on mobile */}
+      <div className="flex-1 flex flex-col items-center justify-center">
+        {/* Header */}
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3 mb-6">
+          <Image src="/icon-192.png" alt="Catholic Wordle" width={44} height={44} className="rounded-md" />
+          Catholic Wordle
+        </h1>
+
         <div
           className="flex flex-col gap-[5px]"
           style={shake ? { animation: "shake 0.5s" } : undefined}
@@ -488,29 +490,29 @@ export default function WordleGame() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Keyboard - pinned to bottom */}
-      <div className="flex flex-col gap-[6px] w-full max-w-[500px] mx-auto px-2 pb-4 pt-2 shrink-0">
-        {KEYBOARD_ROWS.map((row, rowIdx) => (
-          <div key={rowIdx} className="flex justify-center gap-[6px]">
-            {row.map((key) => (
-              <button
-                key={key}
-                onClick={() => handleKey(key)}
-                className={`${
-                  key === "enter" || key === "⌫"
-                    ? "px-3 text-[11px] sm:text-xs min-w-[52px] sm:min-w-[65px]"
-                    : "flex-1 max-w-[43px]"
-                } h-[58px] rounded font-bold uppercase text-[14px] select-none active:scale-95 transition-all ${getKeyColor(
-                  kStatuses[key]
-                )}`}
-              >
-                {key}
-              </button>
-            ))}
-          </div>
-        ))}
+        {/* Keyboard - right below grid */}
+        <div className="flex flex-col gap-[6px] w-full max-w-[500px] mx-auto px-2 pt-6 pb-4 shrink-0">
+          {KEYBOARD_ROWS.map((row, rowIdx) => (
+            <div key={rowIdx} className="flex justify-center gap-[6px]">
+              {row.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => handleKey(key)}
+                  className={`${
+                    key === "enter" || key === "⌫"
+                      ? "px-3 text-[11px] sm:text-xs min-w-[52px] sm:min-w-[65px]"
+                      : "flex-1 max-w-[43px]"
+                  } h-[58px] rounded font-bold uppercase text-[14px] select-none active:scale-95 transition-all ${getKeyColor(
+                    kStatuses[key]
+                  )}`}
+                >
+                  {key}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

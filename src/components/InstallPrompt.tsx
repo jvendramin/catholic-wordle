@@ -17,6 +17,10 @@ export default function InstallPrompt() {
     // Don't show if already installed as PWA
     if (window.matchMedia("(display-mode: standalone)").matches) return;
 
+    // Only show on mobile
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+    if (!isMobile) return;
+
     // Check if previously dismissed
     const wasDismissed = localStorage.getItem("pwa-install-dismissed");
     if (wasDismissed) return;
