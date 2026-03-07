@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import Confetti from "react-confetti";
 import Image from "next/image";
 import { log } from "@/lib/log";
 import wordData from "@/data/words.json";
@@ -14,6 +15,23 @@ const WORDS_BY_LENGTH: Record<number, string[]> = {
   10: wordData["10_letter"],
 };
 
+const ALL_WORDS_SET = new Set(
+  Object.values(WORDS_BY_LENGTH).flat().map((w) => w.toLowerCase())
+);
+
+async function isValidWord(word: string): Promise<boolean> {
+  const lower = word.toLowerCase();
+  if (ALL_WORDS_SET.has(lower)) return true;
+  try {
+    const res = await fetch(
+      `https://freedictionaryapi.com/api/v1/${encodeURIComponent(lower)}`
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 function pickRandom(words: string[]): string {
   return words[Math.floor(Math.random() * words.length)];
 }
@@ -26,7 +44,7 @@ const KEYBOARD_ROWS = [
   ["enter", "z", "x", "c", "v", "b", "n", "m", "⌫"],
 ];
 
-type LetterStatus = "correct" | "present" | "absent" | "empty" | "tbd";
+type LetterStatus = "correct" | "present" | "absent" | "empty" | "tbd" | "invalid";
 
 interface TileData {
   letter: string;
@@ -39,6 +57,9 @@ interface Stats {
   currentStreak: number;
   maxStreak: number;
   guessDistribution: Record<number, number>;
+  totalWinTime: number;
+  winTimesCount: number;
+  lastGameTime: number | null;
 }
 
 const STATS_KEY = "catholic-wordle-stats";
@@ -49,6 +70,7 @@ interface SavedGame {
   wordLength: number;
   guessWords: string[];
   gameState: "playing" | "won" | "lost";
+  startTime: number;
 }
 
 function loadGame(): SavedGame | null {
@@ -84,7 +106,16 @@ function defaultStats(): Stats {
     currentStreak: 0,
     maxStreak: 0,
     guessDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+    totalWinTime: 0,
+    winTimesCount: 0,
+    lastGameTime: null,
   };
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function saveStats(stats: Stats) {
@@ -132,6 +163,8 @@ function getTileClass(status: LetterStatus): string {
       return STATUS_COLORS.present;
     case "absent":
       return STATUS_COLORS.absent;
+    case "invalid":
+      return "bg-error text-error-content border-error";
     case "tbd":
       return "border-base-content/40 bg-base-100 text-base-content";
     case "empty":
@@ -159,13 +192,19 @@ export default function WordleGame() {
   const [currentGuess, setCurrentGuess] = useState("");
   const [gameState, setGameState] = useState<"playing" | "won" | "lost">("playing");
   const [shake, setShake] = useState(false);
+  const [invalidGuess, setInvalidGuess] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [winRow, setWinRow] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats>(defaultStats);
   const [showStats, setShowStats] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [elapsed, setElapsed] = useState(0);
   const savedGameRef = useRef<SavedGame | null>(null);
   const statsRecorded = useRef(false);
+  const gameStartTime = useRef(Date.now());
 
   const restoreSavedGame = useCallback((saved: SavedGame) => {
     setWordLength(saved.wordLength);
@@ -179,7 +218,23 @@ export default function WordleGame() {
     });
     setGuesses(restoredGuesses);
     setGameState("playing");
+    gameStartTime.current = saved.startTime || Date.now();
     log("game_restored", { word_length: saved.wordLength, guesses: saved.guessWords.length });
+  }, []);
+
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    const interval = setInterval(() => {
+      setElapsed(Math.round((Date.now() - gameStartTime.current) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gameState]);
+
+  useEffect(() => {
+    const updateSize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
   }, []);
 
   // Load stats and check for saved game on mount
@@ -217,7 +272,7 @@ export default function WordleGame() {
   };
 
   const recordResult = useCallback(
-    (won: boolean, guessCount: number) => {
+    (won: boolean, guessCount: number, elapsedSeconds?: number) => {
       if (statsRecorded.current) return;
       statsRecorded.current = true;
 
@@ -230,6 +285,9 @@ export default function WordleGame() {
             ? Math.max(prev.maxStreak, prev.currentStreak + 1)
             : prev.maxStreak,
           guessDistribution: { ...prev.guessDistribution },
+          totalWinTime: prev.totalWinTime + (won && elapsedSeconds ? elapsedSeconds : 0),
+          winTimesCount: prev.winTimesCount + (won ? 1 : 0),
+          lastGameTime: won && elapsedSeconds ? elapsedSeconds : prev.lastGameTime,
         };
         if (won) {
           updated.guessDistribution[guessCount] =
@@ -242,7 +300,7 @@ export default function WordleGame() {
     []
   );
 
-  const submitGuess = useCallback(() => {
+  const submitGuess = useCallback(async () => {
     if (currentGuess.length !== wordLength) {
       setShake(true);
       showToast("Not enough letters");
@@ -254,6 +312,25 @@ export default function WordleGame() {
       setTimeout(() => setShake(false), 500);
       return;
     }
+
+    setIsValidating(true);
+    const valid = await isValidWord(currentGuess);
+    setIsValidating(false);
+
+    if (!valid) {
+      setShake(true);
+      setInvalidGuess(true);
+      showToast("Not in word list");
+      log("invalid_guess", {
+        reason: "not_in_word_list",
+        word: currentGuess,
+        word_length: wordLength,
+      });
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
+    setInvalidGuess(false);
 
     const evaluation = evaluateGuess(currentGuess, answer);
     const tiles: TileData[] = currentGuess.split("").map((letter, i) => ({
@@ -272,15 +349,19 @@ export default function WordleGame() {
       word_length: wordLength,
     });
 
+    const elapsedSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
+
     if (currentGuess === answer) {
       setWinRow(newGuesses.length - 1);
       setGameState("won");
-      recordResult(true, newGuesses.length);
+      setShowConfetti(true);
+      recordResult(true, newGuesses.length, elapsedSeconds);
       clearGame();
       log("game_won", {
         answer,
         guesses: newGuesses.length,
         word_length: wordLength,
+        time: elapsedSeconds,
       });
       setTimeout(() => setShowStats(true), 1600);
     } else if (newGuesses.length >= MAX_GUESSES) {
@@ -294,23 +375,25 @@ export default function WordleGame() {
       });
       setTimeout(() => setShowStats(true), 2000);
     } else {
-      saveGame({ answer, wordLength, guessWords: newGuessWords, gameState: "playing" });
+      saveGame({ answer, wordLength, guessWords: newGuessWords, gameState: "playing", startTime: gameStartTime.current });
     }
   }, [currentGuess, wordLength, answer, guesses, recordResult]);
 
   const handleKey = useCallback(
     (key: string) => {
-      if (gameState !== "playing") return;
+      if (gameState !== "playing" || isValidating) return;
 
       if (key === "enter") {
         submitGuess();
       } else if (key === "⌫" || key === "backspace") {
+        setInvalidGuess(false);
         setCurrentGuess((prev) => prev.slice(0, -1));
       } else if (/^[a-z]$/.test(key) && currentGuess.length < wordLength) {
+        setInvalidGuess(false);
         setCurrentGuess((prev) => prev + key);
       }
     },
-    [gameState, submitGuess, currentGuess.length, wordLength]
+    [gameState, isValidating, submitGuess, currentGuess.length, wordLength]
   );
 
   useEffect(() => {
@@ -338,8 +421,12 @@ export default function WordleGame() {
     setGameState("playing");
     setToast(null);
     setWinRow(null);
+    setInvalidGuess(false);
+    setShowConfetti(false);
     setShowStats(false);
     statsRecorded.current = false;
+    gameStartTime.current = Date.now();
+    setElapsed(0);
     clearGame();
     log("play_again", { word_length: len });
   };
@@ -354,7 +441,11 @@ export default function WordleGame() {
       for (let j = 0; j < wordLength; j++) {
         tiles.push({
           letter: currentGuess[j] || "",
-          status: currentGuess[j] ? "tbd" : "empty",
+          status: currentGuess[j]
+            ? invalidGuess
+              ? "invalid"
+              : "tbd"
+            : "empty",
         });
       }
       rows.push(tiles);
@@ -370,9 +461,19 @@ export default function WordleGame() {
   const kStatuses = keyStatuses();
   const maxDistribution = Math.max(1, ...Object.values(stats.guessDistribution));
   const winPct = stats.played > 0 ? Math.round((stats.wins / stats.played) * 100) : 0;
+  const avgTime = stats.winTimesCount > 0 ? Math.round(stats.totalWinTime / stats.winTimesCount) : null;
 
   return (
     <div className="flex flex-col min-h-[100dvh] bg-base-100">
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={500}
+          style={{ position: "fixed", top: 0, left: 0, zIndex: 100 }}
+        />
+      )}
       {/* Win row bounce animation */}
       <style>{`
         @keyframes bounce-tile {
@@ -385,8 +486,11 @@ export default function WordleGame() {
         }
       `}</style>
 
-      {/* Top bar - icons only, fixed */}
-      <div className="flex items-center justify-end pt-3 pb-1 px-4 shrink-0">
+      {/* Top bar */}
+      <div className="flex items-center justify-between pt-3 pb-1 px-4 shrink-0">
+        <div className="font-mono text-sm tabular-nums opacity-70 min-w-[60px]">
+          {gameState === "playing" ? formatTime(elapsed) : ""}
+        </div>
         <div className="flex gap-1">
           <button
             className="btn btn-ghost btn-sm btn-square"
@@ -526,6 +630,24 @@ export default function WordleGame() {
                   <div className="text-xs opacity-60">Max Streak</div>
                 </div>
               </div>
+
+              {/* Time stats */}
+              {(stats.lastGameTime !== null || avgTime !== null) && (
+                <div className="flex justify-center gap-6 mb-6">
+                  {stats.lastGameTime !== null && (
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">{formatTime(stats.lastGameTime)}</div>
+                      <div className="text-xs opacity-60">Last Time</div>
+                    </div>
+                  )}
+                  {avgTime !== null && (
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">{formatTime(avgTime)}</div>
+                      <div className="text-xs opacity-60">Avg Time</div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Guess distribution */}
               <h4 className="font-semibold text-sm mb-3 text-center">Guess Distribution</h4>
