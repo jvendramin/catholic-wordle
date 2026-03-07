@@ -320,13 +320,12 @@ export default function WordleGame() {
     if (!valid) {
       setShake(true);
       setInvalidGuess(true);
-      showToast("Not in word list");
       log("invalid_guess", {
         reason: "not_in_word_list",
         word: currentGuess,
         word_length: wordLength,
       });
-      setTimeout(() => setShake(false), 500);
+      setTimeout(() => setShake(false), 1500);
       return;
     }
 
@@ -483,6 +482,11 @@ export default function WordleGame() {
         }
         .win-bounce {
           animation: bounce-tile 0.6s ease;
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: translateX(4px); }
         }
       `}</style>
 
@@ -712,7 +716,7 @@ export default function WordleGame() {
 
         <div
           className="flex flex-col gap-[5px]"
-          style={shake ? { animation: "shake 0.5s" } : undefined}
+          style={shake ? { animation: "shake 1.5s ease-in-out" } : undefined}
         >
           {rows.map((row, rowIdx) => (
             <div key={rowIdx} className="flex gap-[5px] justify-center">
