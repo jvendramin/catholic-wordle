@@ -94,7 +94,10 @@ function loadStats(): Stats {
   if (typeof window === "undefined") return defaultStats();
   try {
     const raw = localStorage.getItem(STATS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...defaultStats(), ...parsed };
+    }
   } catch {}
   return defaultStats();
 }
@@ -636,15 +639,15 @@ export default function WordleGame() {
               </div>
 
               {/* Time stats */}
-              {(stats.lastGameTime !== null || avgTime !== null) && (
+              {(stats.lastGameTime != null && stats.lastGameTime > 0 || avgTime != null && avgTime > 0) && (
                 <div className="flex justify-center gap-6 mb-6">
-                  {stats.lastGameTime !== null && (
+                  {stats.lastGameTime != null && stats.lastGameTime > 0 && (
                     <div className="text-center">
                       <div className="text-3xl font-bold">{formatTime(stats.lastGameTime)}</div>
                       <div className="text-xs opacity-60">Last Time</div>
                     </div>
                   )}
-                  {avgTime !== null && (
+                  {avgTime != null && avgTime > 0 && (
                     <div className="text-center">
                       <div className="text-3xl font-bold">{formatTime(avgTime)}</div>
                       <div className="text-xs opacity-60">Avg Time</div>
